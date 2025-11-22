@@ -1,5 +1,6 @@
 """
-Test script for Linkup + OpenAI Integration with Tool Calling
+Test script for Linkup + OpenAI-Compatible Integration with Tool Calling
+Uses Baseten's OpenAI-compatible endpoint with DeepSeek-V3
 Based on: https://docs.linkup.so/pages/llms/openai-function-calling
 """
 import os
@@ -12,19 +13,25 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+BASETEN_API_KEY = os.environ.get("BASETEN_API_KEY")
 LINKUP_API_KEY = os.environ.get("LINKUP_API_KEY")
 
-if not OPENAI_API_KEY or not LINKUP_API_KEY:
+if not BASETEN_API_KEY or not LINKUP_API_KEY:
     print("Error: API keys not found.")
-    print(f"  OPENAI_API_KEY: {'set' if OPENAI_API_KEY else 'NOT SET'}")
+    print(f"  BASETEN_API_KEY: {'set' if BASETEN_API_KEY else 'NOT SET'}")
     print(f"  LINKUP_API_KEY: {'set' if LINKUP_API_KEY else 'NOT SET'}")
     print("\nPlease set your API keys in a .env file or environment variables.")
     exit(1)
 
-# Initialize clients
-openai_client = OpenAI(api_key=OPENAI_API_KEY)
+# Initialize clients - using Baseten's OpenAI-compatible endpoint
+openai_client = OpenAI(
+    api_key=BASETEN_API_KEY,
+    base_url="https://inference.baseten.co/v1"
+)
 linkup_client = LinkupClient(api_key=LINKUP_API_KEY)
+
+# Model to use via Baseten
+MODEL = "deepseek-ai/DeepSeek-V3-0324"
 
 # Define the function schema for OpenAI
 tools = [{
@@ -59,11 +66,14 @@ def execute_search(query: str) -> str:
         return json.dumps({"error": str(e)})
 
 
-def run_query(user_query: str, model: str = "gpt-4o") -> dict:
+def run_query(user_query: str, model: str = None) -> dict:
     """
-    Run a single query through OpenAI with Linkup tool calling.
+    Run a single query through OpenAI-compatible API with Linkup tool calling.
     Returns a dict with the query, tool calls made, and final response.
     """
+    if model is None:
+        model = MODEL
+
     result = {
         "query": user_query,
         "model": model,

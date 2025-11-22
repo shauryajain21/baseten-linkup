@@ -1,0 +1,58 @@
+[
+  {
+    "query": "What are the latest developments in AI this week?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:06.733516"
+  },
+  {
+    "query": "What is the current price of Bitcoin?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.266460"
+  },
+  {
+    "query": "What's happening in the news today?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.406845"
+  },
+  {
+    "query": "Who won the most recent Super Bowl?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.526481"
+  },
+  {
+    "query": "What are the top trending topics on social media right now?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.544236"
+  },
+  {
+    "query": "Explain how photosynthesis works",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.558003"
+  },
+  {
+    "query": "What is the capital of France?",
+    "model": "deepseek-ai/DeepSeek-V3-0324",
+    "tool_calls": [],
+    "final_response": null,
+    "error": "Access denied",
+    "timestamp": "2025-11-22T21:21:07.571229"
+  }
+]
