@@ -2,6 +2,8 @@ import os
 import json
 import time
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Lock
 from openai import OpenAI
 from linkup import LinkupClient
 from dotenv import load_dotenv
@@ -197,35 +199,81 @@ def run_agent_with_output_type(query, output_type):
         "answer": final_answer
     }
 
+def run_single_test(query, query_num, total_queries, output_type, print_lock):
+    """Run a single test and return the result"""
+    with print_lock:
+        print(f"[{query_num}/{total_queries}] Starting {output_type}: {query[:50]}...")
+
+    result = run_agent_with_output_type(query, output_type)
+
+    with print_lock:
+        print(f"[{query_num}/{total_queries}] ✓ {output_type}: {result['total_latency']}s (Linkup: {result['linkup_latency']}s)")
+
+    return result
+
 def main():
     print("=" * 80)
-    print("BENCHMARKING: sourcedAnswer vs searchResults")
+    print("PARALLEL BENCHMARKING: sourcedAnswer vs searchResults (10 QPS)")
     print("=" * 80)
-    print(f"Testing {len(TEST_QUERIES)} queries with both output types...\n")
+    print(f"Testing {len(TEST_QUERIES)} queries with both output types in parallel...\n")
+    print("Target: 10 queries per second (QPS)")
+    print("=" * 80 + "\n")
 
-    results = []
+    # Lock for thread-safe printing
+    print_lock = Lock()
 
+    # Prepare all tasks (both output types for each query)
+    all_tasks = []
     for i, query in enumerate(TEST_QUERIES, 1):
-        print(f"\n[{i}/{len(TEST_QUERIES)}] Testing: {query[:60]}...")
+        all_tasks.append((query, i, len(TEST_QUERIES), "sourcedAnswer"))
+        all_tasks.append((query, i, len(TEST_QUERIES), "searchResults"))
 
-        # Test with sourcedAnswer
-        print("  → Running with sourcedAnswer...")
-        result_sourced = run_agent_with_output_type(query, "sourcedAnswer")
-        time.sleep(1)  # Brief pause between calls
+    # Run with 10 QPS = 10 concurrent workers
+    results_by_query = {query: {} for query in TEST_QUERIES}
 
-        # Test with searchResults
-        print("  → Running with searchResults...")
-        result_search = run_agent_with_output_type(query, "searchResults")
-        time.sleep(1)  # Brief pause between calls
+    start_time = time.time()
 
-        results.append({
-            "query": query,
-            "sourcedAnswer": result_sourced,
-            "searchResults": result_search
-        })
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # Submit all tasks
+        future_to_task = {
+            executor.submit(run_single_test, query, num, total, output_type, print_lock): (query, output_type)
+            for query, num, total, output_type in all_tasks
+        }
 
-        print(f"  ✓ sourcedAnswer: {result_sourced['total_latency']}s (Linkup: {result_sourced['linkup_latency']}s)")
-        print(f"  ✓ searchResults: {result_search['total_latency']}s (Linkup: {result_search['linkup_latency']}s)")
+        # Collect results as they complete
+        for future in as_completed(future_to_task):
+            query, output_type = future_to_task[future]
+            try:
+                result = future.result()
+                results_by_query[query][output_type] = result
+            except Exception as e:
+                with print_lock:
+                    print(f"❌ Error for {query[:30]}... ({output_type}): {e}")
+                results_by_query[query][output_type] = {
+                    "query": query,
+                    "output_type": output_type,
+                    "error": str(e),
+                    "total_latency": 0,
+                    "linkup_latency": 0,
+                    "tool_used": False
+                }
+
+    total_time = time.time() - start_time
+
+    # Convert to list format
+    results = []
+    for query in TEST_QUERIES:
+        if "sourcedAnswer" in results_by_query[query] and "searchResults" in results_by_query[query]:
+            results.append({
+                "query": query,
+                "sourcedAnswer": results_by_query[query]["sourcedAnswer"],
+                "searchResults": results_by_query[query]["searchResults"]
+            })
+
+    print(f"\n{'=' * 80}")
+    print(f"PARALLEL EXECUTION COMPLETED in {total_time:.2f}s")
+    print(f"Actual QPS: {(len(TEST_QUERIES) * 2) / total_time:.2f}")
+    print(f"{'=' * 80}")
 
     # Save results to JSON
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -261,13 +309,16 @@ def main():
     # Generate markdown report
     report_file = f"benchmark_report_{timestamp}.md"
     with open(report_file, 'w') as f:
-        f.write("# Benchmark Report: sourcedAnswer vs searchResults\n\n")
+        f.write("# Benchmark Report: sourcedAnswer vs searchResults (Parallel @ 10 QPS)\n\n")
         f.write(f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
         f.write(f"**Model:** {MODEL_SLUG}\n\n")
         f.write(f"**Queries Tested:** {len(TEST_QUERIES)}\n\n")
+        f.write(f"**Execution Mode:** Parallel (10 concurrent workers)\n\n")
+        f.write(f"**Total Execution Time:** {total_time:.2f}s\n\n")
+        f.write(f"**Actual QPS:** {(len(TEST_QUERIES) * 2) / total_time:.2f}\n\n")
 
         f.write("## Summary Statistics\n\n")
-        f.write("### Total Latency\n")
+        f.write("### Total Latency (per query)\n")
         f.write(f"- **sourcedAnswer**: Avg {sum(sourced_latencies)/len(sourced_latencies):.3f}s (Min: {min(sourced_latencies):.3f}s, Max: {max(sourced_latencies):.3f}s)\n")
         f.write(f"- **searchResults**: Avg {sum(search_latencies)/len(search_latencies):.3f}s (Min: {min(search_latencies):.3f}s, Max: {max(search_latencies):.3f}s)\n\n")
 
@@ -275,7 +326,8 @@ def main():
             f.write("### Linkup API Latency\n")
             f.write(f"- **sourcedAnswer**: Avg {sum(sourced_linkup)/len(sourced_linkup):.3f}s\n")
             f.write(f"- **searchResults**: Avg {sum(search_linkup)/len(search_linkup):.3f}s\n")
-            f.write(f"- **Speedup**: {((sum(sourced_linkup)/len(sourced_linkup)) / (sum(search_linkup)/len(search_linkup)) - 1) * 100:.1f}% faster\n\n")
+            speedup_pct = ((sum(sourced_linkup)/len(sourced_linkup)) / (sum(search_linkup)/len(search_linkup)) - 1) * 100
+            f.write(f"- **Speedup**: searchResults is {abs(speedup_pct):.1f}% {'faster' if speedup_pct < 0 else 'slower'}\n\n")
 
         f.write("## Detailed Results\n\n")
 
