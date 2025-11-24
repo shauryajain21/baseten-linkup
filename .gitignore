@@ -42,3 +42,7 @@ wheels/
 # OS
 .DS_Store
 Thumbs.db
+
+# Benchmark results
+benchmark_results_*.json
+benchmark_report_*.md
