@@ -154,11 +154,15 @@ def main():
                             linkup_result = linkup.search(
                                 query=q,
                                 depth="standard",
-                                output_type="sourcedAnswer"
+                                output_type="searchResults"
                             )
 
-                            # Structure the retrieved context
-                            content = f"Answer: {linkup_result.answer}\nSources: {[s.url for s in linkup_result.sources]}"
+                            # Structure the retrieved context from search results
+                            results_text = "\n\n".join([
+                                f"Title: {r.name}\nURL: {r.url}\nContent: {r.content}"
+                                for r in linkup_result.results
+                            ])
+                            content = f"Search Results:\n{results_text}"
                             print("✓ Search completed")
 
                         except Exception as e:
